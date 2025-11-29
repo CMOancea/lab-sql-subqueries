@@ -49,17 +49,77 @@ WHERE film_id IN (
 
 -- Retrieve the name and email of customers from Canada using both subqueries and joins. 
 -- To use joins, you will need to identify the relevant tables and their primary and foreign keys.
-SELECT address_id
-FROM address
-WHERE city_id IN (
-    -- Subconsulta Media: IDs de las ciudades canadienses
-    SELECT city_id
-    FROM city
-    WHERE country_id = (
-        -- Subconsulta Interna: ID del país 'Canada'
-        SELECT country_id
-        FROM country
-        WHERE country = 'Canada'
+SELECT first_name, last_name, email 
+FROM customer
+WHERE address_id IN ( 
+    -- Nivel 3: IDs de direcciones en ciudades canadienses
+    SELECT address_id
+    FROM address
+    WHERE city_id IN (
+        -- Nivel 2: IDs de las ciudades canadienses
+        SELECT city_id
+        FROM city
+        WHERE country_id = (
+            -- Nivel 1: ID del país 'Canada'
+            SELECT country_id
+            FROM country
+            WHERE country = 'Canada'
+        )
     )
 );
 
+-- Determine which films were starred by the most prolific actor in the Sakila database...
+
+SELECT title 
+FROM film
+WHERE film_id IN ( 
+    -- Nivel 2: Lista todos los IDs de las películas del actor más prolífico
+    SELECT film_id
+    FROM film_actor
+    WHERE actor_id = (
+        -- Nivel 1: Encuentra el ID del actor más prolífico (solo 1 ID)
+        SELECT actor_id
+        FROM film_actor
+        GROUP BY actor_id
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+    )
+);
+
+-- Find the films rented by the most profitable customer in the Sakila database.
+SELECT title 
+FROM film
+WHERE film_id IN (
+    -- Nivel 3: Lista de IDs de películas (film_id)
+    SELECT film_id
+    FROM inventory
+    WHERE inventory_id IN (
+        -- Nivel 2: Lista de IDs de copias rentadas (inventory_id)
+        SELECT inventory_id
+        FROM rental
+        WHERE customer_id = (
+            -- Nivel 1: ID del cliente más rentable
+            SELECT customer_id
+            FROM payment
+            GROUP BY customer_id
+            ORDER BY SUM(amount) DESC
+            LIMIT 1
+        )
+    )
+);
+
+-- Retrieve the client_id and the total_amount_spent of those clients who spent more than the average of the total_amount spent by each client. 
+-- You can use subqueries to accomplish this.
+SELECT customer_id, SUM(amount) AS total_amount_spent
+FROM payment
+GROUP BY customer_id
+-- La condición se aplica al grupo (a la suma), por eso usamos HAVING
+HAVING SUM(amount) > ( 
+    -- Subconsulta Anidada: Calcula el promedio de la suma de gastos de CADA cliente
+    SELECT AVG(total_spent)
+    FROM (
+        SELECT SUM(amount) AS total_spent
+        FROM payment
+        GROUP BY customer_id
+    ) AS customer_totals
+);
